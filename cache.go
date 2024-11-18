@@ -135,6 +135,15 @@ func (c *cache) GetWithExpiration(k string) (any, time.Time, bool) {
 	return item.Object, time.Time{}, true
 }
 
+// GetWithTTL same as GetWithExpiration, but returns time.Duration before value expired.
+func (c *cache) GetWithTTL(k string) (v any, ttl time.Duration, found bool) {
+	var exp time.Time
+	if v, exp, found = c.GetWithExpiration(k); found {
+		ttl = time.Unix(0, c.timeCache.Load()).Sub(exp)
+	}
+	return
+}
+
 func (c *cache) get(k string) (any, bool) {
 	tmp, found := c.items.Load(k)
 	if !found {

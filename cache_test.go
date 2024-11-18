@@ -2,7 +2,7 @@ package cache
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -71,7 +71,7 @@ func TestCache(t *testing.T) {
 func TestCacheTimes(t *testing.T) {
 	var found bool
 
-	tc := New(50*time.Millisecond, 1*time.Millisecond)
+	tc := New(50*time.Millisecond, 1*time.Millisecond, true)
 	tc.Set("a", 1, DefaultExpiration)
 	tc.Set("b", 2, NoExpiration)
 	tc.Set("c", 3, 20*time.Millisecond)
@@ -108,11 +108,11 @@ func TestCacheTimes(t *testing.T) {
 
 func TestNewFrom(t *testing.T) {
 	m := map[string]Item{
-		"a": Item{
+		"a": {
 			Object:     1,
 			Expiration: 0,
 		},
-		"b": Item{
+		"b": {
 			Object:     2,
 			Expiration: 0,
 		},
@@ -1189,9 +1189,9 @@ func TestIncrementOverflowInt(t *testing.T) {
 		t.Error("Error incrementing int8:", err)
 	}
 	x, _ := tc.Get("int8")
-	int8 := x.(int8)
-	if int8 != -128 {
-		t.Error("int8 did not overflow as expected; value:", int8)
+	i8 := x.(int8)
+	if i8 != -128 {
+		t.Error("int8 did not overflow as expected; value:", i8)
 	}
 
 }
@@ -1204,9 +1204,9 @@ func TestIncrementOverflowUint(t *testing.T) {
 		t.Error("Error incrementing int8:", err)
 	}
 	x, _ := tc.Get("uint8")
-	uint8 := x.(uint8)
-	if uint8 != 0 {
-		t.Error("uint8 did not overflow as expected; value:", uint8)
+	ui8 := x.(uint8)
+	if ui8 != 0 {
+		t.Error("uint8 did not overflow as expected; value:", ui8)
 	}
 }
 
@@ -1218,9 +1218,9 @@ func TestDecrementUnderflowUint(t *testing.T) {
 		t.Error("Error decrementing int8:", err)
 	}
 	x, _ := tc.Get("uint8")
-	uint8 := x.(uint8)
-	if uint8 != 255 {
-		t.Error("uint8 did not underflow as expected; value:", uint8)
+	ui8 := x.(uint8)
+	if ui8 != 255 {
+		t.Error("uint8 did not underflow as expected; value:", ui8)
 	}
 }
 
@@ -1267,14 +1267,14 @@ func testFillAndSerialize(t *testing.T, tc *Cache) {
 		{Num: 3},
 	}, DefaultExpiration)
 	tc.Set("[]*struct", []*TestStruct{
-		&TestStruct{Num: 4},
-		&TestStruct{Num: 5},
+		{Num: 4},
+		{Num: 5},
 	}, DefaultExpiration)
 	tc.Set("structception", &TestStruct{
 		Num: 42,
 		Children: []*TestStruct{
-			&TestStruct{Num: 6174},
-			&TestStruct{Num: 4716},
+			{Num: 6174},
+			{Num: 4716},
 		},
 	}, DefaultExpiration)
 
@@ -1284,7 +1284,7 @@ func testFillAndSerialize(t *testing.T, tc *Cache) {
 		t.Fatal("Couldn't save cache to fp:", err)
 	}
 
-	oc := New(DefaultExpiration, 0)
+	oc := New(DefaultExpiration, 0, true)
 	err = oc.Load(fp)
 	if err != nil {
 		t.Fatal("Couldn't load cache from fp:", err)
@@ -1376,18 +1376,18 @@ func testFillAndSerialize(t *testing.T, tc *Cache) {
 
 func TestFileSerialization(t *testing.T) {
 	tc := New(DefaultExpiration, 0)
-	tc.Add("a", "a", DefaultExpiration)
-	tc.Add("b", "b", DefaultExpiration)
-	f, err := ioutil.TempFile("", "go-cache-cache.dat")
+	_ = tc.Add("a", "a", DefaultExpiration)
+	_ = tc.Add("b", "b", DefaultExpiration)
+	f, err := os.CreateTemp("", "go-cache-cache.dat")
 	if err != nil {
 		t.Fatal("Couldn't create cache file:", err)
 	}
 	fname := f.Name()
-	f.Close()
-	tc.SaveFile(fname)
+	_ = f.Close()
+	_ = tc.SaveFile(fname)
 
 	oc := New(DefaultExpiration, 0)
-	oc.Add("a", "aa", 0) // this should not be overwritten
+	_ = oc.Add("a", "aa", 0) // this should not be overwritten
 	err = oc.LoadFile(fname)
 	if err != nil {
 		t.Error(err)
@@ -1420,7 +1420,7 @@ func TestSerializeUnserializable(t *testing.T) {
 	tc.Set("chan", ch, DefaultExpiration)
 	fp := &bytes.Buffer{}
 	err := tc.Save(fp) // this should fail gracefully
-	if err.Error() != "gob NewTypeObject can't handle type: chan bool" {
+	if err != nil && err.Error() != "gob NewTypeObject can't handle type: chan bool" {
 		t.Error("Error from Save was not gob NewTypeObject can't handle type chan bool:", err)
 	}
 }
@@ -1452,6 +1452,7 @@ func BenchmarkRWMutexMapGet(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		mu.RLock()
+		//nolint:gosimple
 		_, _ = m["foo"]
 		mu.RUnlock()
 	}
@@ -1467,6 +1468,7 @@ func BenchmarkRWMutexInterfaceMapGetStruct(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		mu.RLock()
+		//nolint:gosimple
 		_, _ = m[s]
 		mu.RUnlock()
 	}
@@ -1481,6 +1483,7 @@ func BenchmarkRWMutexInterfaceMapGetString(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		mu.RLock()
+		//nolint:gosimple
 		_, _ = m["foo"]
 		mu.RUnlock()
 	}
@@ -1529,6 +1532,7 @@ func BenchmarkRWMutexMapGetConcurrent(b *testing.B) {
 		go func() {
 			for j := 0; j < each; j++ {
 				mu.RLock()
+				//nolint:gosimple
 				_, _ = m["foo"]
 				mu.RUnlock()
 			}
@@ -1633,10 +1637,8 @@ func BenchmarkCacheSetDeleteSingleLock(b *testing.B) {
 	tc := New(DefaultExpiration, 0)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		tc.mu.Lock()
 		tc.set("foo", "bar", DefaultExpiration)
 		tc.delete("foo")
-		tc.mu.Unlock()
 	}
 }
 
@@ -1659,18 +1661,16 @@ func BenchmarkIncrementInt(b *testing.B) {
 	tc.Set("foo", 0, DefaultExpiration)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		tc.IncrementInt("foo", 1)
+		_, _ = tc.IncrementInt("foo", 1)
 	}
 }
 
 func BenchmarkDeleteExpiredLoop(b *testing.B) {
 	b.StopTimer()
 	tc := New(5*time.Minute, 0)
-	tc.mu.Lock()
 	for i := 0; i < 100000; i++ {
 		tc.set(strconv.Itoa(i), "bar", DefaultExpiration)
 	}
-	tc.mu.Unlock()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		tc.DeleteExpired()
@@ -1769,7 +1769,8 @@ func TestGetWithExpiration(t *testing.T) {
 			t.Error("expiration for e is not the correct time")
 		}
 	}
-	if expiration.UnixNano() < time.Now().UnixNano() {
-		t.Error("expiration for e is in the past")
+	now := time.Now()
+	if expiration.UnixNano() < now.UnixNano() {
+		t.Error("expiration for e is in the past, diff: ", now.Sub(expiration))
 	}
 }

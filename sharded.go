@@ -2,13 +2,10 @@ package cache
 
 import (
 	"crypto/rand"
-	"math"
-	"math/big"
-	insecurerand "math/rand"
-	"os"
+	"encoding/binary"
 	"runtime"
-	"time"
 	"sync"
+	"time"
 )
 
 // This is an experimental and unexported (for now) attempt at making a cache
@@ -105,7 +102,7 @@ func (sc *shardedCache) DeleteExpired() {
 	}
 }
 
-// Returns the items in the cache. This may include items that have expired,
+// Items Returns the items in the cache. This may include items that have expired,
 // but have not yet been cleaned up. If this is significant, the Expiration
 // fields of the items should be checked. Note that explicit synchronization
 // is needed to use a cache and its corresponding Items() return values at
@@ -155,15 +152,11 @@ func runShardedJanitor(sc *shardedCache, ci time.Duration) {
 }
 
 func newShardedCache(n int, de time.Duration) *shardedCache {
-	max := big.NewInt(0).SetUint64(uint64(math.MaxUint32))
-	rnd, err := rand.Int(rand.Reader, max)
-	var seed uint32
-	if err != nil {
-		os.Stderr.Write([]byte("WARNING: go-cache's newShardedCache failed to read from the system CSPRNG (/dev/urandom or equivalent.) Your system's security may be compromised. Continuing with an insecure seed.\n"))
-		seed = insecurerand.Uint32()
-	} else {
-		seed = uint32(rnd.Uint64())
+	rndBytes := make([]byte, 4)
+	if _, err := rand.Read(rndBytes); err != nil {
+		panic(err.Error())
 	}
+	seed := binary.LittleEndian.Uint32(rndBytes)
 	sc := &shardedCache{
 		seed: seed,
 		m:    uint32(n),

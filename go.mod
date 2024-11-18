@@ -1,3 +1,3 @@
-module sot-te.ch/go-cache
+module github.com/sot-tech/go-cache
 
 go 1.23
